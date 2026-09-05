@@ -1,0 +1,1810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Street Rescue — track dogs from report to adoption</title>
+<meta name="description" content="A field notebook for street dog rescue: log a dog in thirty seconds, follow it through treatment, print an adoption poster." />
+<meta name="theme-color" content="#2C2118" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='5' fill='%232c2118'/%3E%3Cg fill='%23e8b06a'%3E%3Ccircle cx='7.8' cy='9' r='1.9'/%3E%3Ccircle cx='12' cy='7.4' r='2'/%3E%3Ccircle cx='16.2' cy='9' r='1.9'/%3E%3Cpath d='M12 12.6c2.7 0 5.3 2.3 5.3 4.6a2.6 2.6 0 0 1-2.6 2.6c-.9 0-1.8-.4-2.7-.4s-1.8.4-2.7.4a2.6 2.6 0 0 1-2.6-2.6c0-2.3 2.6-4.6 5.3-4.6z'/%3E%3C/g%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&display=swap" rel="stylesheet" />
+<style>
+/* ---------------------------------------------------------------
+   Street Rescue — a field notebook for people who pick up dogs.
+   Phone-first: big targets, one thumb, works with no signal.
+   --------------------------------------------------------------- */
+:root {
+  --bark: #2c2118;
+  --bark-soft: #4a3a2c;
+  --field: #ece7dd;
+  --field-deep: #e2dccf;
+  --card: #ffffff;
+  --line: #d9d1c3;
+  --critical: #c1392b;
+  --urgent: #b8730f;
+  --stable: #3c7357;
+  --safe: #2f6f62;
+  --gold: #e8b06a;
+  --quiet: #7b6f61;
+  --radius: 12px;
+  --ui: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display: 'Newsreader', Georgia, serif;
+  --lift: 0 1px 2px rgba(44,33,24,.06), 0 8px 20px -14px rgba(44,33,24,.5);
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--field); color: var(--bark);
+  font-family: var(--ui); font-size: 15px; line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--bark); outline-offset: 2px; }
+.hidden { display: none !important; }
+h1, h2, h3, h4 { margin: 0; font-weight: 600; }
+p { margin: 0; }
+img { max-width: 100%; }
+
+/* ------------------------------- shell -------------------------------- */
+
+/* Phone: sticky top bar, scrolling tabs, action pinned under the thumb.
+   Desktop: the same nav becomes a left sidebar, so the app reads as a
+   workspace instead of a phone screen stretched wide. */
+
+.shell { min-height: 100dvh; }
+.content { min-width: 0; }
+
+.rail { position: sticky; top: 0; z-index: 20; background: var(--bark); color: #f4efe6; padding: 12px 16px 0; }
+.rail-top { display: flex; align-items: center; gap: 12px; max-width: 1080px; margin: 0 auto; }
+.brand { display: flex; align-items: center; gap: 9px; font-family: var(--display); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+.brand em { font-style: normal; color: var(--gold); }
+.brand .mark { width: 25px; height: 25px; flex: none; fill: var(--gold); }
+.rail-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.live-count { font-size: 13px; color: #b9ab99; }
+.live-count b { color: #fff; font-weight: 600; }
+
+.tabs { display: flex; gap: 2px; max-width: 1080px; margin: 10px auto 0; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button {
+  display: flex; align-items: center; gap: 8px;
+  border: none; background: none; color: #b9ab99; padding: 10px 13px;
+  border-bottom: 3px solid transparent; font-weight: 500; white-space: nowrap;
+  transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+.tabs button:hover { color: #efe6d8; }
+.tabs button[aria-selected='true'] { color: #fff; border-bottom-color: var(--gold); }
+
+.ico { width: 18px; height: 18px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+.page-head { max-width: 1080px; margin: 0 auto; padding: 22px 16px 0; }
+.page-head h1 { font-family: var(--display); font-size: 27px; font-weight: 600; letter-spacing: -0.01em; }
+.page-head p { color: var(--quiet); font-size: 13.5px; margin-top: 3px; max-width: 56ch; }
+
+main { max-width: 1080px; margin: 0 auto; padding: 16px 16px 104px; }
+
+.report-bar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 25;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--field) 62%, rgba(236,231,221,0));
+  pointer-events: none;
+}
+.report-bar .inner { max-width: 1080px; margin: 0 auto; pointer-events: auto; }
+
+.skip-link { position: absolute; left: -9999px; }
+.skip-link:focus {
+  left: 12px; top: 12px; z-index: 90; background: #fff; color: var(--bark);
+  padding: 10px 14px; border-radius: var(--radius); box-shadow: var(--lift);
+}
+
+@media (min-width: 940px) {
+  .shell { display: grid; grid-template-columns: 246px 1fr; }
+  .rail { height: 100dvh; padding: 22px 14px; display: flex; flex-direction: column; gap: 20px; }
+  .rail-top { display: contents; }
+  .brand { order: 1; padding: 0 8px; }
+  .tabs { order: 2; flex-direction: column; gap: 3px; margin: 0; overflow: visible; }
+  .tabs button { width: 100%; padding: 10px 12px; border-bottom: none; border-radius: 10px; }
+  .tabs button:hover { background: #3a2c21; }
+  .tabs button[aria-selected='true'] { background: #3a2c21; }
+  .tabs button[aria-selected='true'] .ico { color: var(--gold); }
+  .rail-actions { order: 3; margin: auto 0 0; flex-direction: column; align-items: stretch; gap: 10px; }
+  .rail-actions .live-count { padding: 0 8px; }
+  .report-bar { order: 4; position: static; padding: 0; background: none; }
+
+  main { margin: 0; padding: 16px 30px 64px; max-width: 940px; }
+  .page-head { margin: 0; padding: 28px 30px 0; max-width: 940px; }
+  .page-head h1 { font-size: 31px; }
+}
+
+/* ------------------------------ controls ------------------------------- */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 11px 16px; border: 1px solid transparent; border-radius: var(--radius);
+  background: none; font-size: 14.5px; font-weight: 600; line-height: 1;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 90ms ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn-alarm { background: var(--critical); color: #fff; box-shadow: 0 8px 22px -10px rgba(193,57,43,.95); }
+.btn-alarm:hover { background: #a72f23; }
+.btn-solid { background: var(--bark); color: #f4efe6; }
+.btn-solid:hover { background: #1d1610; }
+.btn-line { border-color: var(--line); background: var(--card); }
+.btn-line:hover { border-color: var(--bark-soft); }
+.btn-dark-line { border-color: #57473a; color: #e9e0d3; }
+.btn-dark-line:hover { background: #3a2c21; }
+.btn-danger { color: var(--critical); }
+.btn-danger:hover { background: rgba(193,57,43,.08); }
+.btn-block { width: 100%; }
+.btn-small { padding: 8px 12px; font-size: 13.5px; }
+.btn[disabled] { opacity: .45; cursor: not-allowed; }
+
+.field { display: block; margin-bottom: 14px; }
+.field > span { display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: var(--bark-soft); }
+.field input, .field textarea, .field select {
+  width: 100%; padding: 11px 12px; border: 1px solid var(--line);
+  border-radius: var(--radius); background: #fff;
+}
+.field textarea { resize: vertical; min-height: 80px; }
+.field .hint { display: block; margin-top: 5px; font-size: 12.5px; color: var(--quiet); font-weight: 400; }
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  padding: 9px 13px; border: 1px solid var(--line); border-radius: 999px;
+  background: #fff; font-size: 13.5px; font-weight: 500;
+  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+.chip:hover { border-color: var(--bark-soft); }
+.chip[aria-pressed='true'] { background: var(--bark); color: #f4efe6; border-color: var(--bark); }
+.chip[data-urgency='critical'][aria-pressed='true'] { background: var(--critical); border-color: var(--critical); }
+.chip[data-urgency='urgent'][aria-pressed='true'] { background: var(--urgent); border-color: var(--urgent); }
+.chip[data-urgency='stable'][aria-pressed='true'] { background: var(--stable); border-color: var(--stable); }
+.chip .n { opacity: .6; margin-left: 5px; font-variant-numeric: tabular-nums; }
+
+.toolbar { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.toolbar input {
+  flex: 1; min-width: 170px; padding: 11px 12px; border: 1px solid var(--line);
+  border-radius: var(--radius); background: #fff;
+}
+.toolbar select { padding: 11px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+.filter-scroll { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; scrollbar-width: none; }
+.filter-scroll::-webkit-scrollbar { display: none; }
+.filter-scroll .chip { white-space: nowrap; }
+
+/* ------------------------------ overview ------------------------------- */
+
+.hero {
+  background: var(--bark); color: #f6f0e6; border-radius: 18px;
+  padding: 26px 22px; margin-bottom: 18px; position: relative; overflow: hidden;
+}
+.hero h1 { font-family: var(--display); font-size: clamp(28px, 5.2vw, 42px); font-weight: 600; line-height: 1.06; max-width: 17ch; }
+.hero p { margin-top: 10px; color: #c6b8a6; max-width: 46ch; }
+.hero-actions { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.hero-figure { position: absolute; right: -14px; bottom: -20px; width: 190px; opacity: .13; pointer-events: none; }
+@media (max-width: 640px) { .hero-figure { display: none; } }
+
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(146px, 1fr)); gap: 12px; margin-bottom: 22px; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 15px; box-shadow: var(--lift); }
+.stat b { display: block; font-family: var(--display); font-size: 36px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 13px; color: var(--quiet); }
+.stat.alarm b { color: var(--critical); }
+
+.section-head { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; }
+.section-head h2 { font-size: 17px; }
+.section-head .rule { flex: 1; height: 1px; background: var(--line); }
+.section-head button { border: none; background: none; color: var(--bark-soft); font-size: 13.5px; font-weight: 600; text-decoration: underline; }
+
+.rail-scroll { display: flex; gap: 12px; overflow-x: auto; padding: 2px 2px 12px; scroll-snap-type: x mandatory; }
+.rail-scroll > * { scroll-snap-align: start; flex: 0 0 240px; }
+
+/* ------------------------------- cards --------------------------------- */
+
+.stage { margin-bottom: 24px; }
+.stage-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.stage-head h2 { font-size: 15px; }
+.stage-head .n { font-size: 13px; color: var(--quiet); }
+.stage-head .rule { flex: 1; height: 1px; background: var(--line); }
+
+.cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(312px, 1fr)); }
+
+.dog {
+  display: flex; gap: 12px; padding: 12px; background: var(--card); text-align: left; width: 100%;
+  border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: var(--radius);
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+.dog:hover { box-shadow: var(--lift); transform: translateY(-1px); border-color: var(--bark-soft); }
+.dog[data-urgency='critical'] { border-left-color: var(--critical); }
+.dog[data-urgency='urgent'] { border-left-color: var(--urgent); }
+.dog[data-urgency='stable'] { border-left-color: var(--stable); }
+
+.dog-photo { width: 64px; height: 64px; flex: none; border-radius: 10px; object-fit: cover; background: var(--field-deep); }
+.dog-body { min-width: 0; flex: 1; }
+.dog-body h3 { font-size: 15.5px; }
+.dog-meta { font-size: 13px; color: var(--quiet); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dog-note { font-size: 13.5px; margin-top: 6px; color: var(--bark-soft); }
+.days { font-size: 12px; color: var(--quiet); margin-top: 6px; }
+
+.gallery-card {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--lift);
+}
+.gallery-card > img { width: 100%; height: 168px; object-fit: cover; background: var(--field-deep); }
+.gallery-body { padding: 13px; display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.gallery-body h3 { font-family: var(--display); font-size: 21px; font-weight: 600; }
+.gallery-actions { display: flex; gap: 8px; padding: 0 13px 13px; }
+.gallery-actions .btn { flex: 1; }
+
+.tag { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: #efe9de; color: var(--bark-soft); }
+.tag.critical { background: rgba(193,57,43,.12); color: var(--critical); }
+.tag.urgent { background: rgba(184,115,15,.15); color: #8c5709; }
+.tag.stable { background: rgba(60,115,87,.13); color: var(--stable); }
+.tag.demo { background: rgba(47,111,98,.12); color: var(--safe); }
+
+.empty {
+  padding: 32px 20px; text-align: center; border: 1px dashed var(--line);
+  border-radius: var(--radius); color: var(--quiet); background: rgba(255,255,255,.55);
+}
+.empty strong { display: block; color: var(--bark); font-size: 16px; margin-bottom: 4px; }
+.empty .btn { margin-top: 14px; }
+
+/* ------------------------------- sheets -------------------------------- */
+
+.overlay {
+  position: fixed; inset: 0; z-index: 50; background: rgba(44,33,24,.55);
+  display: flex; align-items: flex-end; justify-content: center; animation: fade 160ms ease;
+}
+.sheet {
+  width: min(640px, 100%); max-height: 92vh; overflow-y: auto; background: var(--field);
+  border-radius: 18px 18px 0 0; padding: 20px 18px calc(24px + env(safe-area-inset-bottom));
+  animation: rise 220ms cubic-bezier(.22,.9,.3,1);
+}
+@keyframes fade { from { opacity: 0; } }
+@keyframes rise { from { transform: translateY(26px); opacity: 0; } }
+.sheet-head { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.sheet-head h3 { font-size: 20px; flex: 1; font-family: var(--display); font-weight: 600; }
+.sheet-actions { display: flex; gap: 8px; margin-top: 18px; }
+.sheet-actions .btn { flex: 1; }
+@media (min-width: 700px) {
+  .overlay { align-items: center; }
+  .sheet { border-radius: 16px; }
+}
+
+.detail-photo { width: 100%; max-height: 270px; object-fit: cover; border-radius: var(--radius); margin-bottom: 14px; background: var(--field-deep); }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(142px, 1fr)); gap: 10px; margin: 14px 0; }
+.detail-grid div { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; }
+.detail-grid dt { font-size: 12px; color: var(--quiet); font-weight: 600; }
+.detail-grid dd { margin: 2px 0 0; font-size: 14px; }
+.detail-grid a { color: var(--safe); }
+
+.stepper { display: flex; gap: 4px; margin: 4px 0 16px; }
+.stepper button { flex: 1; border: none; background: none; padding: 0; text-align: left; }
+.stepper i { display: block; height: 6px; border-radius: 999px; background: var(--field-deep); transition: background-color 220ms ease; }
+.stepper span { display: block; font-size: 11px; color: var(--quiet); margin-top: 5px; }
+.stepper button[data-done='true'] i { background: var(--safe); }
+.stepper button[data-current='true'] i { background: var(--bark); }
+.stepper button[data-current='true'] span { color: var(--bark); font-weight: 600; }
+
+.log { list-style: none; margin: 10px 0 0; padding: 0; }
+.log li { display: flex; gap: 0; padding: 9px 0; font-size: 14px; position: relative; }
+.log li::before { content: ''; position: absolute; left: 76px; top: 0; bottom: 0; width: 1px; background: var(--line); }
+.log li:first-child::before { top: 16px; }
+.log li:last-child::before { bottom: calc(100% - 16px); }
+.log time { flex: none; width: 66px; font-size: 12.5px; color: var(--quiet); padding-top: 2px; }
+.log .dot { position: absolute; left: 72px; top: 13px; width: 9px; height: 9px; border-radius: 50%; background: var(--bark-soft); border: 2px solid var(--field); }
+.log .text { padding-left: 26px; }
+
+.contact-card {
+  display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--card);
+  border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 10px; box-shadow: var(--lift);
+}
+.contact-card .grow { flex: 1; min-width: 0; }
+.kind-dot { width: 38px; height: 38px; flex: none; border-radius: 10px; display: grid; place-items: center; background: var(--field-deep); font-size: 17px; }
+.contact-card a.call { padding: 10px 14px; border-radius: var(--radius); background: var(--safe); color: #fff; text-decoration: none; font-weight: 600; font-size: 14px; }
+
+/* ------------------------------- charts -------------------------------- */
+
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 18px; box-shadow: var(--lift); }
+.panel h2 { font-size: 16px; }
+.panel .sub { font-size: 13px; color: var(--quiet); margin-bottom: 14px; }
+.chart { width: 100%; height: 190px; display: block; }
+.chart .grid-line { stroke: #ded6c8; stroke-width: 1; }
+.chart .axis-label { font-size: 11px; fill: #7b6f61; font-family: var(--ui); }
+.chart .line { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.chart .hit { fill: transparent; cursor: pointer; }
+.chart-legend { display: flex; gap: 16px; font-size: 13px; color: var(--quiet); margin-top: 10px; }
+.chart-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.chart-caption { font-size: 13.5px; color: var(--bark-soft); margin-top: 8px; min-height: 20px; }
+
+.bar-row { display: grid; grid-template-columns: 118px 1fr 30px; gap: 10px; align-items: center; margin-bottom: 9px; font-size: 13.5px; }
+.bar { height: 10px; background: var(--field-deep); border-radius: 999px; overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 999px; background: var(--bark-soft); width: 0; transition: width 620ms cubic-bezier(.22,.9,.3,1); }
+.bar i.done { background: var(--safe); }
+
+.toast {
+  position: fixed; left: 50%; bottom: 88px; transform: translateX(-50%); z-index: 70;
+  background: var(--bark); color: #f4efe6; padding: 11px 17px; border-radius: 999px; font-size: 14px;
+  box-shadow: 0 10px 30px -12px rgba(44,33,24,.9);
+}
+.strip {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  background: #f6e3cf; color: #7c4c14; font-size: 13.5px; padding: 10px 16px;
+}
+.strip .btn { margin-left: auto; }
+.strip.demo { background: #dce8e2; color: #22564a; }
+
+/* ------------------------------- poster -------------------------------- */
+
+#poster-stage { display: none; }
+.poster {
+  width: 210mm; min-height: 297mm; padding: 18mm; background: #fff; color: #221a13;
+  box-sizing: border-box; display: flex; flex-direction: column; gap: 8mm;
+}
+.poster .kicker { font-size: 14px; letter-spacing: .2em; color: var(--critical); font-weight: 700; }
+.poster h1 { font-family: var(--display); font-size: 64px; line-height: 1; }
+.poster img { width: 100%; height: 116mm; object-fit: cover; border-radius: 4mm; background: #eee; }
+.poster .facts { display: flex; flex-wrap: wrap; gap: 6mm 12mm; font-size: 15px; }
+.poster .facts b { display: block; font-size: 11px; letter-spacing: .08em; color: #7b6f61; }
+.poster .story { font-size: 16.5px; line-height: 1.5; }
+.poster .call-line { margin-top: auto; border-top: 2px solid #221a13; padding-top: 5mm; font-size: 19px; font-weight: 600; }
+
+@media print {
+  @page { size: A4; margin: 0; }
+  body { background: #fff; }
+  body[data-print='poster'] > *:not(#poster-stage) { display: none !important; }
+  body[data-print='poster'] #poster-stage { display: block; }
+}
+
+/* ------------------------- follow-ups and money ------------------------ */
+
+.due { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: #efe9de; color: var(--bark-soft); }
+.due.overdue { background: rgba(193,57,43,.12); color: var(--critical); }
+.due.today { background: rgba(184,115,15,.15); color: #8c5709; }
+
+.money-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.money-row:last-child { border-bottom: none; }
+.money-row b { font-variant-numeric: tabular-nums; }
+.money-total { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 10px; border-top: 2px solid var(--bark); font-weight: 600; }
+.money-when { color: var(--quiet); font-size: 12.5px; }
+
+.warn-inline { background: #f6e3cf; color: #7c4c14; padding: 11px 12px; border-radius: var(--radius); font-size: 13.5px; margin-bottom: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+
+
+<a class="skip-link" href="#view">Skip to the main content</a>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <symbol id="i-paw" viewBox="0 0 24 24">
+    <circle cx="7.5" cy="8" r="2.1"/><circle cx="12" cy="6.2" r="2.2"/><circle cx="16.5" cy="8" r="2.1"/><circle cx="19" cy="12" r="1.8"/>
+    <path d="M12 12.4c3 0 5.9 2.6 5.9 5.1a2.9 2.9 0 0 1-2.9 2.9c-1 0-2-.5-3-.5s-2 .5-3 .5a2.9 2.9 0 0 1-2.9-2.9c0-2.5 2.9-5.1 5.9-5.1z"/>
+  </symbol>
+  <symbol id="i-overview" viewBox="0 0 24 24"><path d="M4 4.5h6.5V11H4zM13.5 4.5H20v4H13.5zM13.5 11.5H20V20h-6.5zM4 14h6.5v6H4z"/></symbol>
+  <symbol id="i-shelter" viewBox="0 0 24 24"><path d="M3.5 11l8.5-6.6 8.5 6.6v8.4a.6.6 0 0 1-.6.6h-4.6v-5.6H8.7V20H4.1a.6.6 0 0 1-.6-.6z"/></symbol>
+  <symbol id="i-cases" viewBox="0 0 24 24"><path d="M9 4h6v3H9z"/><path d="M7 5.5H5.5v15h13v-15H17"/><path d="M8.5 11h7M8.5 15h4.5"/></symbol>
+  <symbol id="i-adopt" viewBox="0 0 24 24"><path d="M12 20.5S4.5 16 4.5 10.8A3.8 3.8 0 0 1 12 9a3.8 3.8 0 0 1 7.5 1.8C19.5 16 12 20.5 12 20.5z"/></symbol>
+  <symbol id="i-contacts" viewBox="0 0 24 24"><path d="M6.5 3.5h2.6l1.7 4.3-2 1.2a11.5 11.5 0 0 0 5.2 5.2l1.2-2 4.3 1.7v2.6a2 2 0 0 1-2.1 2A16.4 16.4 0 0 1 4.5 5.6a2 2 0 0 1 2-2.1z"/></symbol>
+  <symbol id="i-stats" viewBox="0 0 24 24"><path d="M5 20V11M12 20V4.5M19 20v-6.5M3.5 20h17"/></symbol>
+  <symbol id="i-vet" viewBox="0 0 24 24"><path d="M12 6.5v11M6.5 12h11"/></symbol>
+  <symbol id="i-volunteer" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.4"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></symbol>
+  <symbol id="i-ngo" viewBox="0 0 24 24"><path d="M12 4.2l2.3 4.6 5.1.7-3.7 3.6.9 5.1-4.6-2.4-4.6 2.4.9-5.1L4.6 9.5l5.1-.7z"/></symbol>
+  <symbol id="i-ambulance" viewBox="0 0 24 24"><path d="M3 7h11v9.5H3zM14 10.5h3.4l3.1 2.8v3.2H14"/><circle cx="7" cy="17.5" r="1.6"/><circle cx="17.5" cy="17.5" r="1.6"/><path d="M8.5 10v3.5M6.75 11.75h3.5"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v10m0 0l-3.5-3.5M12 14l3.5-3.5M4.5 17.5v2h15v-2"/></symbol>
+</defs></svg>
+
+<div class="shell">
+  <header class="rail">
+    <div class="rail-top">
+      <p class="brand">
+        <svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-paw"/></svg>Street<em>Rescue</em>
+      </p>
+      <div class="rail-actions">
+        <span class="live-count" id="live-count"></span>
+        <button class="btn btn-dark-line btn-small" id="open-backup">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-download"/></svg>Backup
+        </button>
+      </div>
+    </div>
+
+    <nav class="tabs" role="tablist" aria-label="Sections"><button role="tab" data-tab="overview" aria-selected="true"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-overview"/></svg><span>Overview</span></button><button role="tab" data-tab="board" aria-selected="false"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-cases"/></svg><span>Cases</span></button><button role="tab" data-tab="adopt" aria-selected="false"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-adopt"/></svg><span>Adoption</span></button><button role="tab" data-tab="contacts" aria-selected="false"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-contacts"/></svg><span>Vets &amp; help</span></button><button role="tab" data-tab="stats" aria-selected="false"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-stats"/></svg><span>Numbers</span></button></nav>
+
+    <div class="report-bar" id="report-bar">
+      <div class="inner"><button class="btn btn-alarm btn-block" id="report">Report a dog</button></div>
+    </div>
+  </header>
+
+  <div class="content">
+    <div id="demo-strip" class="strip demo hidden"></div>
+    <div id="storage-warning" class="strip hidden"></div>
+    <div id="page-head" class="page-head hidden"></div>
+    <main id="view"></main>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+<div id="poster-stage" aria-hidden="true"></div>
+<input type="file" id="photo-input" accept="image/*" capture="environment" class="hidden" />
+<input type="file" id="import-file" accept="application/json,.json" class="hidden" />
+
+<script>
+/* =================================================================
+   Street Rescue. One file, no server. Everything stays on the device.
+   ================================================================= */
+(function () {
+  'use strict';
+
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
+  const uid = () => Math.random().toString(36).slice(2, 10);
+  const STORE_KEY = 'street-rescue.v1';
+  const reduceMotion = Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  const STAGES = [
+    { id: 'reported',  label: 'Reported',       short: 'Reported',  next: 'Mark as picked up' },
+    { id: 'rescued',   label: 'Picked up',      short: 'Picked up', next: 'Send to treatment' },
+    { id: 'treatment', label: 'In treatment',   short: 'Treatment', next: 'Ready for adoption' },
+    { id: 'ready',     label: 'Ready to adopt', short: 'Ready',     next: 'Mark as adopted' },
+    { id: 'adopted',   label: 'Adopted',        short: 'Adopted',   next: null }
+  ];
+  const stageIndex = (id) => Math.max(0, STAGES.findIndex((s) => s.id === id));
+  const stageLabel = (id) => STAGES[stageIndex(id)].label;
+
+  const URGENCY = [
+    { id: 'critical', label: 'Critical — needs a vet now' },
+    { id: 'urgent',   label: 'Urgent — today' },
+    { id: 'stable',   label: 'Stable — can wait' }
+  ];
+  const urgencyShort = { critical: 'Critical', urgent: 'Urgent', stable: 'Stable' };
+  const urgencyRank = { critical: 0, urgent: 1, stable: 2 };
+
+  const SEXES = ['Unknown', 'Male', 'Female'];
+  const KINDS = ['Vet', 'Shelter', 'Volunteer', 'NGO', 'Ambulance'];
+  const KIND_ICON = { Vet: 'vet', Shelter: 'shelter', Volunteer: 'volunteer', NGO: 'ngo', Ambulance: 'ambulance' };
+  const icon = (name, cls) => '<svg class="' + (cls || 'ico') + '" viewBox="0 0 24 24" aria-hidden="true">' +
+    '<use href="#i-' + name + '"/></svg>';
+
+  /* ------------------------------ storage ------------------------------ */
+
+  const storage = (function () {
+    let ok = true;
+    try { localStorage.setItem('sr.probe', '1'); localStorage.removeItem('sr.probe'); }
+    catch { ok = false; }
+    return {
+      get available() { return ok; },
+      read() {
+        if (!ok) return null;
+        try { return JSON.parse(localStorage.getItem(STORE_KEY)); } catch { return null; }
+      },
+      write(value) {
+        if (!ok) return 'blocked';
+        try { localStorage.setItem(STORE_KEY, JSON.stringify(value)); return 'saved'; }
+        catch (err) { return err && /quota/i.test(err.name + err.message) ? 'full' : 'blocked'; }
+      }
+    };
+  })();
+
+  /* -------------------------------- model ------------------------------- */
+
+  const nowISO = () => new Date().toISOString();
+  const str = (v, max = 2000) => (typeof v === 'string' ? v.slice(0, max) : '');
+
+  function newDog(fields) {
+    return Object.assign({
+      id: uid(), name: '', photo: '', status: 'reported', urgency: 'urgent',
+      sex: 'Unknown', ageGuess: '', marks: '', location: '', coords: null,
+      condition: '', story: '', vaccinated: false, sterilised: false,
+      finderName: '', finderPhone: '', adopterName: '', adopterPhone: '',
+      dueDate: '', dueNote: '', expenses: [], isDemo: false,
+      createdAt: nowISO(), updatedAt: nowISO(), log: []
+    }, fields || {});
+  }
+
+  /** Rebuild anything loaded from storage or a file, field by field. */
+  function adoptDog(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    const d = newDog();
+    d.id = str(r.id, 40) || d.id;
+    d.name = str(r.name, 60);
+    d.photo = typeof r.photo === 'string' && r.photo.startsWith('data:image/') ? r.photo : '';
+    d.status = STAGES.some((s) => s.id === r.status) ? r.status : 'reported';
+    d.urgency = URGENCY.some((u) => u.id === r.urgency) ? r.urgency : 'urgent';
+    d.sex = SEXES.includes(r.sex) ? r.sex : 'Unknown';
+    ['ageGuess', 'marks', 'location', 'condition', 'story', 'finderName', 'finderPhone',
+      'adopterName', 'adopterPhone', 'dueNote']
+      .forEach((k) => { d[k] = str(r[k], k === 'story' || k === 'condition' ? 1200 : 120); });
+    d.vaccinated = r.vaccinated === true;
+    d.sterilised = r.sterilised === true;
+    d.isDemo = r.isDemo === true;
+    d.dueDate = /^\d{4}-\d{2}-\d{2}$/.test(r.dueDate) ? r.dueDate : '';
+    d.expenses = Array.isArray(r.expenses) ? r.expenses.slice(0, 120).map((e) => ({
+      id: uid(), at: str(e && e.at, 40) || nowISO(), label: str(e && e.label, 80),
+      amount: Number(e && e.amount) > 0 ? Math.round(Number(e.amount) * 100) / 100 : 0
+    })).filter((e) => e.amount > 0) : [];
+    d.coords = r.coords && typeof r.coords.lat === 'number' && typeof r.coords.lng === 'number'
+      ? { lat: r.coords.lat, lng: r.coords.lng } : null;
+    d.createdAt = str(r.createdAt, 40) || d.createdAt;
+    d.updatedAt = str(r.updatedAt, 40) || d.updatedAt;
+    d.log = Array.isArray(r.log) ? r.log.slice(0, 200).map((e) => ({
+      id: uid(), at: str(e && e.at, 40) || nowISO(), text: str(e && e.text, 500)
+    })) : [];
+    return d;
+  }
+
+  function adoptContact(raw) {
+    const r = raw && typeof raw === 'object' ? raw : {};
+    return {
+      id: str(r.id, 40) || uid(),
+      name: str(r.name, 80),
+      kind: KINDS.includes(r.kind) ? r.kind : 'Vet',
+      phone: str(r.phone, 40),
+      area: str(r.area, 120),
+      notes: str(r.notes, 400),
+      isDemo: r.isDemo === true
+    };
+  }
+
+  const state = {
+    dogs: [], contacts: [], tab: 'overview',
+    query: '', stageFilter: 'all', urgencyFilter: 'all', sort: 'urgency'
+  };
+
+  function save() {
+    const result = storage.write({ dogs: state.dogs, contacts: state.contacts });
+    if (result === 'full') warn('Storage is full — most likely from photos. Save a backup file, then delete a few old cases.');
+    else if (result === 'blocked') warn('This browser is blocking local storage, so nothing is kept when you close the tab. Use Backup to save a file.');
+    return result === 'saved';
+  }
+
+  function warn(text) {
+    const strip = $('#storage-warning');
+    strip.textContent = text;
+    strip.classList.remove('hidden');
+  }
+
+  /* ------------------------------- portraits -----------------------------
+     Most dogs are logged without a photo. Rather than an empty grey box,
+     draw a coat-coloured portrait from the dog's own id, so cards in a list
+     stay tellable apart at a glance. */
+
+  const COATS = [
+    ['#a9713a', '#8a5828', '#e8d6ba'], ['#42382f', '#2b241e', '#cfc7bd'],
+    ['#d9b483', '#bd9463', '#f4e8d5'], ['#e0d6c4', '#bfb29b', '#f7f2e8'],
+    ['#7d5a3c', '#5f4229', '#ddc9b0'], ['#8a8a8a', '#666666', '#dedede'],
+    ['#c98f4a', '#a86f2f', '#f0dfc4'], ['#5c5148', '#3e352e', '#cdc4ba']
+  ];
+
+  function hashCode(text) {
+    let h = 0;
+    for (let i = 0; i < text.length; i++) h = (h * 31 + text.charCodeAt(i)) | 0;
+    return Math.abs(h);
+  }
+
+  function portrait(dog) {
+    const [base, dark, light] = COATS[hashCode(dog.id + dog.name) % COATS.length];
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">' +
+      '<rect width="120" height="120" fill="' + light + '"/>' +
+      '<ellipse cx="30" cy="44" rx="14" ry="25" fill="' + dark + '" transform="rotate(-16 30 44)"/>' +
+      '<ellipse cx="90" cy="44" rx="14" ry="25" fill="' + dark + '" transform="rotate(16 90 44)"/>' +
+      '<path d="M60 22c23 0 35 17 35 39 0 25-15 43-35 43S25 86 25 61c0-22 12-39 35-39z" fill="' + base + '"/>' +
+      '<ellipse cx="60" cy="85" rx="20" ry="16" fill="' + light + '"/>' +
+      '<ellipse cx="60" cy="75" rx="7.5" ry="5.5" fill="' + dark + '"/>' +
+      '<circle cx="46" cy="58" r="5" fill="#2b2320"/><circle cx="74" cy="58" r="5" fill="#2b2320"/>' +
+      '<circle cx="47.6" cy="56.4" r="1.7" fill="#fff"/><circle cx="75.6" cy="56.4" r="1.7" fill="#fff"/>' +
+      '<path d="M60 81c0 6-5 9-10 8M60 81c0 6 5 9 10 8" stroke="' + dark + '" stroke-width="2.4" fill="none" stroke-linecap="round"/>' +
+      '</svg>';
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  }
+
+  const faceOf = (dog) => dog.photo || portrait(dog);
+
+  /* ------------------------------- helpers ------------------------------ */
+
+  const dayMs = 86400000;
+  const daysSince = (iso) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / dayMs));
+  const shortDate = (iso) => new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short' });
+  const dogName = (d) => d.name || 'Unnamed dog';
+  const phoneLink = (p) => 'tel:' + String(p).replace(/[^\d+]/g, '');
+  const inCare = (d) => ['rescued', 'treatment', 'ready'].includes(d.status);
+  const todayKey = () => new Date().toISOString().slice(0, 10);
+
+  /** A follow-up only counts while the dog is still yours to look after. */
+  function dueState(dog) {
+    if (!dog.dueDate || dog.status === 'adopted') return '';
+    const today = todayKey();
+    if (dog.dueDate < today) return 'overdue';
+    if (dog.dueDate === today) return 'today';
+    return 'soon';
+  }
+
+  function dueLabel(dog) {
+    const kind = dueState(dog);
+    if (!kind) return '';
+    const nice = new Date(dog.dueDate + 'T00:00:00').toLocaleDateString([], { day: 'numeric', month: 'short' });
+    const what = dog.dueNote || 'Follow-up';
+    if (kind === 'overdue') return what + ' — overdue since ' + nice;
+    if (kind === 'today') return what + ' — due today';
+    return what + ' — ' + nice;
+  }
+
+  const spentOn = (dog) => (dog.expenses || []).reduce((sum, e) => sum + e.amount, 0);
+  const money = (n) => '₹' + Math.round(n).toLocaleString('en-IN');
+
+  function toast(message) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.setAttribute('role', 'status');
+    el.textContent = message;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2800);
+  }
+
+  function logEntry(dog, text) {
+    dog.log.unshift({ id: uid(), at: nowISO(), text: text });
+    dog.updatedAt = nowISO();
+  }
+
+  /* ------------------------------ demo data -----------------------------
+     Seeded on first run so the app is explorable before anything real is in
+     it. Every seeded record carries isDemo, so clearing removes exactly
+     these and never touches a case the user entered. */
+
+  const daysAgo = (n) => new Date(Date.now() - n * dayMs).toISOString();
+
+  const DEMO_ROWS = [
+    { name: 'Bruno', status: 'treatment', urgency: 'critical', sex: 'Male', ageGuess: 'About 2 years',
+      marks: 'Brown, white chest patch', location: 'Near Gandhi Chowk bus stop', age: 6,
+      condition: 'Hit by a bike. Limping badly on the back left leg, not putting weight on it.',
+      story: 'Calm once he knows you. Lets anyone touch the leg now, which he would not on day one.',
+      vaccinated: true, sterilised: false,
+      due: -1, dueNote: 'Change the dressing',
+      expenses: [['Vet consultation', 400, 6], ['X-ray', 800, 5], ['Antibiotics', 350, 4]],
+      log: [[6, 'Reported'], [6, 'Picked up, carried to the clinic in a sheet'], [5, 'X-ray shows no fracture, deep tissue bruising'], [4, 'Antibiotics started, five day course'], [1, 'Walking on three legs, eating well']] },
+
+    { name: 'Kaali', status: 'ready', urgency: 'stable', sex: 'Female', ageGuess: 'About 1 year',
+      marks: 'Black with white front paws', location: 'Market road, behind the vegetable stalls', age: 34,
+      condition: 'Was very thin and had mange. Both cleared up.',
+      story: 'Follows children home from school and waits outside. Sleeps through the night, house trained in four days.',
+      vaccinated: true, sterilised: true,
+      due: 4, dueNote: 'Call the family who visited',
+      expenses: [['Mange treatment', 600, 30], ['Vaccination', 450, 16], ['Sterilisation', 1500, 12]],
+      log: [[34, 'Reported'], [33, 'Picked up'], [30, 'Mange treatment started'], [16, 'Vaccinated'], [12, 'Sterilised'], [5, 'Coat fully grown back, ready for a home']] },
+
+    { name: 'Moti', status: 'ready', urgency: 'stable', sex: 'Male', ageGuess: 'Puppy, around 4 months',
+      marks: 'Tan with a black muzzle', location: 'Construction site off the ring road', age: 21,
+      condition: 'Found with two littermates. Healthy, just hungry.',
+      story: 'Bold and busy. Chews everything he can reach, which will settle. Good with the other two pups.',
+      vaccinated: true, sterilised: false,
+      expenses: [['Deworming', 150, 18], ['First vaccination', 450, 10]],
+      log: [[21, 'Reported with two littermates'], [21, 'Picked up'], [18, 'Dewormed'], [10, 'First vaccination'], [3, 'Ready for a home']] },
+
+    { name: 'Laila', status: 'adopted', urgency: 'stable', sex: 'Female', ageGuess: 'About 3 years',
+      marks: 'White with brown ears', location: 'Temple lane', age: 62,
+      condition: 'Skin infection in both ears.',
+      story: 'Quiet and gentle, happiest lying in a doorway watching the street.',
+      vaccinated: true, sterilised: true,
+      adopterName: 'Sharma family', adopterPhone: '+91 98200 33221',
+      expenses: [['Ear treatment', 550, 55], ['Sterilisation', 1500, 40]],
+      log: [[62, 'Reported'], [60, 'Picked up'], [55, 'Ear infection treated'], [40, 'Sterilised'], [12, 'Adopted by a family in the same lane']] },
+
+    { name: 'Sheru', status: 'rescued', urgency: 'urgent', sex: 'Male', ageGuess: 'About 5 years',
+      marks: 'Grey brindle, torn right ear', location: 'Railway crossing, east side', age: 2,
+      condition: 'Deep cut across the shoulder, a few days old. Flies around the wound.',
+      story: '', vaccinated: false, sterilised: false,
+      log: [[2, 'Reported by a shopkeeper'], [1, 'Picked up, wound cleaned at the roadside'], [1, 'Vet appointment booked for tomorrow morning']] },
+
+    { name: '', status: 'reported', urgency: 'critical', sex: 'Unknown', ageGuess: '',
+      marks: 'Light brown, very thin', location: 'Service road near the petrol pump', age: 0,
+      condition: 'Not standing up. Breathing fast. Someone said it has been there since morning.',
+      story: '', vaccinated: false, sterilised: false,
+      log: [[0, 'Reported — needs someone with a vehicle']] },
+
+    { name: 'Chotu', status: 'treatment', urgency: 'urgent', sex: 'Male', ageGuess: 'Puppy, around 3 months',
+      marks: 'Black and tan', location: 'Behind the school wall', age: 9,
+      condition: 'Parvo symptoms. On a drip at the clinic.',
+      story: '', vaccinated: false, sterilised: false,
+      due: 0, dueNote: 'Clinic check',
+      expenses: [['Parvo test', 500, 8], ['Drip and admission', 2200, 8], ['Medicines', 700, 4]],
+      log: [[9, 'Reported'], [9, 'Picked up, straight to the clinic'], [8, 'Parvo confirmed, on fluids'], [4, 'Drinking on his own'], [2, 'Eating small meals and keeping them down']] },
+
+    { name: 'Rani', status: 'adopted', urgency: 'stable', sex: 'Female', ageGuess: 'About 2 years',
+      marks: 'Golden, curled tail', location: 'Bakery corner', age: 96,
+      condition: 'Pregnant when found. Four puppies, all rehomed.',
+      story: 'Sweet natured, a good mother, took to a house immediately.',
+      vaccinated: true, sterilised: true,
+      log: [[96, 'Reported'], [95, 'Picked up'], [88, 'Gave birth to four puppies'], [50, 'Sterilised after weaning'], [40, 'Adopted']] }
+  ];
+
+  function demoDogs() {
+    return DEMO_ROWS.map((row) => {
+      const dog = newDog({
+        name: row.name, status: row.status, urgency: row.urgency, sex: row.sex,
+        ageGuess: row.ageGuess, marks: row.marks, location: row.location,
+        condition: row.condition, story: row.story,
+        vaccinated: row.vaccinated, sterilised: row.sterilised,
+        finderName: 'Rescue line', finderPhone: '+91 98765 43210',
+        adopterName: row.adopterName || '', adopterPhone: row.adopterPhone || '',
+        isDemo: true, createdAt: daysAgo(row.age), updatedAt: daysAgo(Math.max(0, row.age - 1))
+      });
+      if (typeof row.due === 'number') {
+        dog.dueDate = new Date(Date.now() + row.due * dayMs).toISOString().slice(0, 10);
+        dog.dueNote = row.dueNote || '';
+      }
+      dog.expenses = (row.expenses || []).map((e) => ({ id: uid(), at: daysAgo(e[2]), label: e[0], amount: e[1] }));
+      dog.log = row.log
+        .map((entry) => ({ id: uid(), at: daysAgo(entry[0]), text: entry[1] }))
+        .sort((a, b) => b.at.localeCompare(a.at));
+      return dog;
+    });
+  }
+
+  const demoContacts = () => [
+    { name: 'Dr Mehta — small animal clinic', kind: 'Vet', phone: '+91 98200 11223', area: 'Station road', notes: 'Open till 9pm. Treats strays at half rate.' },
+    { name: 'City Animal Shelter', kind: 'Shelter', phone: '+91 98200 44556', area: 'Outside the bypass', notes: 'Six kennels. Call before bringing a dog in.' },
+    { name: 'Animal ambulance', kind: 'Ambulance', phone: '1962', area: 'Whole district', notes: 'Free pickup for injured strays. Slow after dark.' },
+    { name: 'Priya — foster volunteer', kind: 'Volunteer', phone: '+91 98200 77889', area: 'Old town', notes: 'Can foster puppies, not adult dogs.' }
+  ].map((c) => adoptContact(Object.assign({ isDemo: true }, c)));
+
+  function loadDemo() {
+    state.dogs = demoDogs().concat(state.dogs);
+    state.contacts = state.contacts.concat(demoContacts());
+    save();
+  }
+
+  function clearDemo() {
+    state.dogs = state.dogs.filter((d) => !d.isDemo);
+    state.contacts = state.contacts.filter((c) => !c.isDemo);
+    save();
+  }
+
+  const hasDemo = () => state.dogs.some((d) => d.isDemo) || state.contacts.some((c) => c.isDemo);
+
+  /* -------------------------------- views ------------------------------- */
+
+  const VIEWS = {};
+
+  // The overview carries its own headline, so it does not take a page header.
+  const PAGE_HEAD = {
+    board: ['Cases', 'Every dog you have logged, grouped by the stage it has reached.'],
+    adopt: ['Adoption', 'Dogs that finished treatment and are waiting for a home.'],
+    contacts: ['Vets and help', 'Numbers to call in the field. They stay on this device and work offline.'],
+    stats: ['Numbers', 'Totals for a shelter, a donor, or your own records.']
+  };
+
+  function render() {
+    $('#view').innerHTML = (VIEWS[state.tab] || VIEWS.overview)();
+
+    $$('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
+
+    const head = PAGE_HEAD[state.tab];
+    const headEl = $('#page-head');
+    headEl.classList.toggle('hidden', !head);
+    if (head) headEl.innerHTML = '<h1>' + esc(head[0]) + '</h1><p>' + esc(head[1]) + '</p>';
+    $('#report-bar').classList.toggle('hidden', state.tab === 'stats');
+
+    const open = state.dogs.filter((d) => d.status !== 'adopted').length;
+    $('#live-count').innerHTML = state.dogs.length ? '<b>' + open + '</b> open' : '';
+
+    const strip = $('#demo-strip');
+    strip.classList.toggle('hidden', !hasDemo());
+    if (hasDemo()) {
+      strip.innerHTML = '<span>These are sample cases so you can look around. Anything you add sits alongside them.</span>' +
+        '<button class="btn btn-line btn-small" id="clear-demo">Clear samples</button>';
+    }
+
+    animateIn();
+  }
+
+  /** One orchestrated moment per view: bars grow, counters count up. */
+  function animateIn() {
+    const run = () => {
+      $$('.bar i[data-w]').forEach((el) => { el.style.width = el.dataset.w + '%'; });
+
+      $$('[data-count]').forEach((el) => {
+        const target = Number(el.dataset.count);
+        if (reduceMotion || !target || typeof performance === 'undefined') { el.textContent = target; return; }
+        const start = performance.now();
+        const step = (t) => {
+          const p = Math.min(1, (t - start) / 520);
+          el.textContent = Math.round(target * (1 - Math.pow(1 - p, 3)));
+          if (p < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      });
+    };
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run); else run();
+  }
+
+  function matches(dog) {
+    const q = state.query.trim().toLowerCase();
+    if (q && [dog.name, dog.location, dog.marks, dog.condition, dog.story].join(' ').toLowerCase().indexOf(q) === -1) return false;
+    if (state.stageFilter !== 'all' && dog.status !== state.stageFilter) return false;
+    if (state.urgencyFilter !== 'all' && dog.urgency !== state.urgencyFilter) return false;
+    return true;
+  }
+
+  const sorters = {
+    urgency: (a, b) => (urgencyRank[a.urgency] - urgencyRank[b.urgency]) || b.createdAt.localeCompare(a.createdAt),
+    newest: (a, b) => b.createdAt.localeCompare(a.createdAt),
+    longest: (a, b) => a.createdAt.localeCompare(b.createdAt)
+  };
+
+  function dogCard(dog) {
+    const bits = [urgencyShort[dog.urgency], dog.sex !== 'Unknown' ? dog.sex : '', dog.location].filter(Boolean).join(' · ');
+    return '<button class="dog" data-open="' + dog.id + '" data-urgency="' + dog.urgency + '">' +
+        '<img class="dog-photo" src="' + esc(faceOf(dog)) + '" alt="" />' +
+        '<div class="dog-body">' +
+          '<h3>' + esc(dogName(dog)) + '</h3>' +
+          '<p class="dog-meta">' + esc(bits) + '</p>' +
+          (dog.condition ? '<p class="dog-note">' + esc(dog.condition.slice(0, 88)) + '</p>' : '') +
+          '<p class="days">' + esc(stageLabel(dog.status)) + ' · day ' + daysSince(dog.createdAt) + '</p>' +
+          (dueState(dog) ? '<span class="due ' + dueState(dog) + '">' + esc(dueLabel(dog)) + '</span>' : '') +
+        '</div></button>';
+  }
+
+  function galleryCard(d) {
+    const facts = [d.sex !== 'Unknown' ? d.sex : '', d.ageGuess].filter(Boolean).join(' · ');
+    return '<article class="gallery-card">' +
+        '<img src="' + esc(faceOf(d)) + '" alt="' + esc(dogName(d)) + '" />' +
+        '<div class="gallery-body">' +
+          '<h3>' + esc(dogName(d)) + '</h3>' +
+          '<p class="dog-meta">' + esc(facts) + '</p>' +
+          (d.story ? '<p class="dog-note">' + esc(d.story.slice(0, 110)) + '</p>' : '') +
+          '<p class="days">' + (d.vaccinated ? 'Vaccinated' : 'Vaccination pending') + ' · ' + (d.sterilised ? 'Sterilised' : 'Not sterilised') + '</p>' +
+        '</div>' +
+        '<div class="gallery-actions">' +
+          '<button class="btn btn-line btn-small" data-open="' + d.id + '">Open case</button>' +
+          '<button class="btn btn-solid btn-small" data-poster="' + d.id + '">Poster</button>' +
+        '</div></article>';
+  }
+
+  /* -------------------------------- overview ----------------------------- */
+
+  VIEWS.overview = function () {
+    const open = state.dogs.filter((d) => d.status !== 'adopted');
+    const needs = open.filter((d) => d.urgency !== 'stable').sort(sorters.urgency).slice(0, 4);
+    const ready = state.dogs.filter((d) => d.status === 'ready');
+    const adopted = state.dogs.filter((d) => d.status === 'adopted').length;
+    const care = state.dogs.filter(inCare).length;
+    const due = state.dogs
+      .filter((d) => ['overdue', 'today'].indexOf(dueState(d)) !== -1)
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+
+    const hero = '<section class="hero">' +
+      '<svg class="hero-figure" viewBox="0 0 120 120" aria-hidden="true">' +
+        '<ellipse cx="30" cy="44" rx="14" ry="25" fill="#f6f0e6" transform="rotate(-16 30 44)"/>' +
+        '<ellipse cx="90" cy="44" rx="14" ry="25" fill="#f6f0e6" transform="rotate(16 90 44)"/>' +
+        '<path d="M60 22c23 0 35 17 35 39 0 25-15 43-35 43S25 86 25 61c0-22 12-39 35-39z" fill="#f6f0e6"/></svg>' +
+      '<h1>Every dog you pick up, followed to the end.</h1>' +
+      '<p>Log a dog in half a minute at the roadside. Track it through treatment. Print a poster when it is ready for a home.</p>' +
+      '<div class="hero-actions">' +
+        '<button class="btn btn-alarm" id="hero-report">Report a dog</button>' +
+        '<button class="btn btn-dark-line" data-goto="board">See all cases</button>' +
+      '</div></section>';
+
+    if (!state.dogs.length) {
+      return hero + '<div class="empty"><strong>Nothing logged yet</strong>' +
+        'Start with a real dog, or load a set of sample cases to see how the app works.' +
+        '<button class="btn btn-line" id="load-demo">Load sample cases</button></div>';
+    }
+
+    return hero +
+      '<div class="stat-grid">' +
+        '<div class="stat' + (needs.length ? ' alarm' : '') + '"><b data-count="' + needs.length + '">0</b><span>need attention now</span></div>' +
+        '<div class="stat"><b data-count="' + care + '">0</b><span>in your care</span></div>' +
+        '<div class="stat"><b data-count="' + ready.length + '">0</b><span>ready for a home</span></div>' +
+        '<div class="stat"><b data-count="' + adopted + '">0</b><span>adopted so far</span></div>' +
+        '<div class="stat"><b data-count="' + due.length + '">0</b><span>follow-ups due</span></div>' +
+      '</div>' +
+
+      (due.length
+        ? '<div class="section-head"><h2>Follow-ups due</h2><span class="rule"></span></div>' +
+          '<div class="cards" style="margin-bottom:26px">' + due.map(dogCard).join('') + '</div>'
+        : '') +
+
+      '<div class="section-head"><h2>Needs attention</h2><span class="rule"></span>' +
+        '<button data-goto="board">All cases</button></div>' +
+      (needs.length
+        ? '<div class="cards">' + needs.map(dogCard).join('') + '</div>'
+        : '<div class="empty">Nothing critical or urgent right now. Everything open is stable.</div>') +
+
+      '<div class="section-head" style="margin-top:26px"><h2>Ready for a home</h2><span class="rule"></span>' +
+        '<button data-goto="adopt">Adoption</button></div>' +
+      (ready.length
+        ? '<div class="rail-scroll">' + ready.map(galleryCard).join('') + '</div>'
+        : '<div class="empty">No dogs are ready yet. They appear here after treatment finishes.</div>');
+  };
+
+  /* --------------------------------- cases ------------------------------- */
+
+  VIEWS.board = function () {
+    if (!state.dogs.length) {
+      return '<div class="empty"><strong>No cases yet</strong>' +
+        'Tap “Report a dog” when you find one. It takes about thirty seconds and works with no signal.' +
+        '<button class="btn btn-line" id="load-demo">Load sample cases</button></div>';
+    }
+
+    const count = (id) => state.dogs.filter((d) => d.status === id).length;
+    const stageChips = ['<button class="chip" data-stage="all" aria-pressed="' + (state.stageFilter === 'all') + '">All<span class="n">' + state.dogs.length + '</span></button>']
+      .concat(STAGES.map((s) => '<button class="chip" data-stage="' + s.id + '" aria-pressed="' + (state.stageFilter === s.id) + '">' + esc(s.short) + '<span class="n">' + count(s.id) + '</span></button>'))
+      .join('');
+
+    const urgencyChips = ['<button class="chip" data-urg="all" aria-pressed="' + (state.urgencyFilter === 'all') + '">Any urgency</button>']
+      .concat(URGENCY.map((u) => '<button class="chip" data-urg="' + u.id + '" data-urgency="' + u.id + '" aria-pressed="' + (state.urgencyFilter === u.id) + '">' + esc(urgencyShort[u.id]) + '</button>'))
+      .join('');
+
+    const visible = state.dogs.filter(matches);
+
+    const body = state.stageFilter === 'all'
+      ? STAGES.map((stage) => {
+          const list = visible.filter((d) => d.status === stage.id).sort(sorters[state.sort]);
+          if (!list.length) return '';
+          return '<section class="stage">' +
+            '<div class="stage-head"><h2>' + esc(stage.label) + '</h2><span class="n">' + list.length + '</span><span class="rule"></span></div>' +
+            '<div class="cards">' + list.map(dogCard).join('') + '</div></section>';
+        }).join('')
+      : '<div class="cards">' + visible.slice().sort(sorters[state.sort]).map(dogCard).join('') + '</div>';
+
+    return '<div class="toolbar">' +
+        '<input id="search" placeholder="Search name, place or marking" value="' + esc(state.query) + '" />' +
+        '<select id="sort" aria-label="Sort cases">' +
+          '<option value="urgency"' + (state.sort === 'urgency' ? ' selected' : '') + '>Most urgent first</option>' +
+          '<option value="newest"' + (state.sort === 'newest' ? ' selected' : '') + '>Newest first</option>' +
+          '<option value="longest"' + (state.sort === 'longest' ? ' selected' : '') + '>Longest waiting</option>' +
+        '</select></div>' +
+      '<div class="filter-scroll">' + stageChips + '</div>' +
+      '<div class="filter-scroll">' + urgencyChips + '</div>' +
+      (body || '<div class="empty"><strong>Nothing matches</strong>Clear the filters or try a shorter word.</div>');
+  };
+
+  VIEWS.adopt = function () {
+    const list = state.dogs.filter((d) => d.status === 'ready');
+    if (!list.length) {
+      return '<div class="empty"><strong>No dogs ready yet</strong>' +
+        'Once a dog finishes treatment, move the case to “Ready to adopt” and it shows up here with a printable poster.</div>';
+    }
+    return '<p class="dog-meta" style="margin-bottom:14px">' + list.length + ' dog' + (list.length === 1 ? '' : 's') +
+      ' waiting for a home. Each poster prints on one A4 sheet.</p>' +
+      '<div class="cards">' + list.map(galleryCard).join('') + '</div>';
+  };
+
+  VIEWS.contacts = function () {
+    const rows = state.contacts.map((c) => '<div class="contact-card">' +
+        '<span class="kind-dot">' + icon(KIND_ICON[c.kind] || 'vet') + '</span>' +
+        '<div class="grow"><h3>' + esc(c.name) + '</h3>' +
+          '<p class="dog-meta">' + esc([c.kind, c.phone, c.area].filter(Boolean).join(' · ')) + '</p>' +
+          (c.notes ? '<p class="dog-note">' + esc(c.notes) + '</p>' : '') + '</div>' +
+        (c.phone ? '<a class="call" href="' + esc(phoneLink(c.phone)) + '">Call</a>' : '') +
+        '<button class="btn btn-danger btn-small" data-del-contact="' + c.id + '">Remove</button>' +
+      '</div>').join('');
+
+    return (rows || '<div class="empty"><strong>No numbers saved</strong>' +
+        'Add the vets, shelters and volunteers you actually call. They stay on this device, so they work offline.</div>') +
+      '<button class="btn btn-solid btn-block" id="add-contact" style="margin-top:14px">Add a number</button>';
+  };
+
+  /* -------------------------------- numbers ------------------------------ */
+
+  const bucketKey = (iso) => { const d = new Date(iso); return d.getFullYear() + '-' + d.getMonth(); };
+
+  function monthBuckets(months) {
+    const out = [];
+    const now = new Date();
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      out.push({ key: d.getFullYear() + '-' + d.getMonth(), label: d.toLocaleDateString([], { month: 'short' }), reports: 0, adoptions: 0 });
+    }
+    return out;
+  }
+
+  function trendChart() {
+    const buckets = monthBuckets(6);
+    const index = {};
+    buckets.forEach((b) => { index[b.key] = b; });
+
+    state.dogs.forEach((d) => {
+      const rb = index[bucketKey(d.createdAt)];
+      if (rb) rb.reports++;
+      if (d.status === 'adopted') {
+        const ab = index[bucketKey(d.updatedAt)];
+        if (ab) ab.adoptions++;
+      }
+    });
+
+    const W = 640, H = 190, padL = 30, padR = 12, padT = 14, padB = 26;
+    const max = Math.max(2, ...buckets.map((b) => Math.max(b.reports, b.adoptions)));
+    const x = (i) => padL + (i * (W - padL - padR)) / Math.max(1, buckets.length - 1);
+    const y = (v) => padT + (1 - v / max) * (H - padT - padB);
+    const path = (key) => buckets.map((b, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(b[key]).toFixed(1)).join(' ');
+
+    const gridlines = [0, 0.5, 1].map((f) => {
+      const value = Math.round(max * f);
+      return '<line class="grid-line" x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(value) + '" y2="' + y(value) + '"/>' +
+        '<text class="axis-label" x="2" y="' + (y(value) + 4) + '">' + value + '</text>';
+    }).join('');
+
+    const dots = buckets.map((b, i) =>
+      '<circle cx="' + x(i) + '" cy="' + y(b.reports) + '" r="3.6" fill="#4a3a2c"/>' +
+      '<circle cx="' + x(i) + '" cy="' + y(b.adoptions) + '" r="3.6" fill="#2f6f62"/>' +
+      '<rect class="hit" x="' + (x(i) - 24) + '" y="' + padT + '" width="48" height="' + (H - padT - padB) + '" ' +
+        'data-month="' + esc(b.label) + '" data-reports="' + b.reports + '" data-adoptions="' + b.adoptions + '"/>').join('');
+
+    const labels = buckets.map((b, i) =>
+      '<text class="axis-label" x="' + x(i) + '" y="' + (H - 6) + '" text-anchor="middle">' + esc(b.label) + '</text>').join('');
+
+    return '<div class="panel">' +
+        '<h2>Last six months</h2>' +
+        '<p class="sub">Dogs reported against dogs adopted. Hover or tap a month.</p>' +
+        '<svg class="chart" id="trend" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Monthly reports and adoptions">' +
+          gridlines +
+          '<path class="line" d="' + path('reports') + '" stroke="#4a3a2c"/>' +
+          '<path class="line" d="' + path('adoptions') + '" stroke="#2f6f62"/>' +
+          dots + labels +
+        '</svg>' +
+        '<div class="chart-legend">' +
+          '<span><i style="background:#4a3a2c"></i>Reported</span>' +
+          '<span><i style="background:#2f6f62"></i>Adopted</span>' +
+        '</div>' +
+        '<p class="chart-caption" id="trend-caption"></p>' +
+      '</div>';
+  }
+
+  VIEWS.stats = function () {
+    const total = state.dogs.length;
+    if (!total) {
+      return '<div class="empty"><strong>Numbers appear once you log a case</strong>' +
+        'They are useful when you ask a shelter or a donor for help.</div>';
+    }
+
+    const adopted = state.dogs.filter((d) => d.status === 'adopted').length;
+    const care = state.dogs.filter(inCare);
+    const thisMonth = state.dogs.filter((d) => Date.now() - new Date(d.createdAt).getTime() < 30 * dayMs).length;
+    const avgDays = care.length ? Math.round(care.reduce((s, d) => s + daysSince(d.createdAt), 0) / care.length) : 0;
+    const vaccinated = state.dogs.filter((d) => d.vaccinated).length;
+    const sterilised = state.dogs.filter((d) => d.sterilised).length;
+    const totalSpent = state.dogs.reduce((sum, d) => sum + spentOn(d), 0);
+    const spent30 = state.dogs.reduce((sum, d) => sum + (d.expenses || [])
+      .filter((e) => Date.now() - new Date(e.at).getTime() < 30 * dayMs)
+      .reduce((a, e) => a + e.amount, 0), 0);
+
+    const counts = STAGES.map((s) => ({ label: s.label, id: s.id, n: state.dogs.filter((d) => d.status === s.id).length }));
+    const max = Math.max(1, ...counts.map((c) => c.n));
+
+    return '<div class="stat-grid">' +
+        '<div class="stat"><b data-count="' + total + '">0</b><span>dogs logged</span></div>' +
+        '<div class="stat"><b data-count="' + adopted + '">0</b><span>adopted</span></div>' +
+        '<div class="stat"><b data-count="' + care.length + '">0</b><span>in your care now</span></div>' +
+        '<div class="stat"><b data-count="' + thisMonth + '">0</b><span>reported in 30 days</span></div>' +
+        '<div class="stat"><b data-count="' + avgDays + '">0</b><span>average days in care</span></div>' +
+      '</div>' +
+
+      trendChart() +
+
+      '<div class="panel"><h2>Where the cases sit</h2>' +
+        '<p class="sub">Every dog you have logged, by stage.</p>' +
+        counts.map((c) => '<div class="bar-row"><span>' + esc(c.label) + '</span>' +
+          '<span class="bar"><i class="' + (c.id === 'adopted' ? 'done' : '') + '" data-w="' + Math.round((c.n / max) * 100) + '"></i></span>' +
+          '<span>' + c.n + '</span></div>').join('') +
+      '</div>' +
+
+      '<div class="panel"><h2>Money spent</h2>' +
+        '<p class="sub">Recorded against cases. Useful when you ask for help.</p>' +
+        '<div class="money-row"><span>All time</span><b>' + money(totalSpent) + '</b></div>' +
+        '<div class="money-row"><span>Last 30 days</span><b>' + money(spent30) + '</b></div>' +
+        '<div class="money-row"><span>Average per dog</span><b>' + money(total ? totalSpent / total : 0) + '</b></div>' +
+      '</div>' +
+
+      '<div class="panel"><h2>Health cover</h2>' +
+        '<p class="sub">Out of ' + total + ' dog' + (total === 1 ? '' : 's') + ' logged.</p>' +
+        '<div class="bar-row"><span>Vaccinated</span><span class="bar"><i class="done" data-w="' + Math.round((vaccinated / total) * 100) + '"></i></span><span>' + vaccinated + '</span></div>' +
+        '<div class="bar-row"><span>Sterilised</span><span class="bar"><i class="done" data-w="' + Math.round((sterilised / total) * 100) + '"></i></span><span>' + sterilised + '</span></div>' +
+      '</div>';
+  };
+
+  /* -------------------------------- sheets ------------------------------- */
+
+  function openSheet(html) {
+    const root = $('#modal-root');
+    root.innerHTML = '<div class="overlay"><div class="sheet" role="dialog" aria-modal="true">' + html + '</div></div>';
+    root.querySelector('.overlay').addEventListener('click', (e) => {
+      if (e.target.classList.contains('overlay') || e.target.dataset.close !== undefined) closeSheet();
+    });
+    document.addEventListener('keydown', escClose);
+    return root.querySelector('.sheet');
+  }
+  const escClose = (e) => { if (e.key === 'Escape') closeSheet(); };
+  function closeSheet() {
+    $('#modal-root').innerHTML = '';
+    document.removeEventListener('keydown', escClose);
+  }
+  const sheetOpen = () => Boolean($('#modal-root').firstChild);
+
+  const chipRow = (name, options, selected) => '<div class="chip-row">' + options.map((o) => {
+    const value = o.id || o;
+    return '<button type="button" class="chip" data-' + name + '="' + value + '" data-urgency="' + (o.id || '') + '"' +
+      ' aria-pressed="' + (value === selected) + '">' + esc(o.label || o) + '</button>';
+  }).join('') + '</div>';
+
+  function openReportSheet() {
+    const draft = newDog();
+
+    const sheet = openSheet(
+      '<div class="sheet-head"><h3>Report a dog</h3>' +
+        '<button class="btn btn-line btn-small" data-close>Cancel</button></div>' +
+
+      '<label class="field"><span>How urgent is it?</span>' + chipRow('urgency', URGENCY, draft.urgency) + '</label>' +
+
+      '<label class="field"><span>Where is the dog?</span>' +
+        '<input id="f-location" placeholder="Landmark, street or area" />' +
+        '<span class="hint" id="coord-note">Add a landmark someone else could find.</span></label>' +
+      '<button class="btn btn-line btn-block btn-small" id="use-location" style="margin:-6px 0 16px">Use my current location</button>' +
+
+      '<label class="field"><span>What is wrong?</span>' +
+        '<textarea id="f-condition" placeholder="Limping on the back left leg, bleeding, very thin — whatever you can see."></textarea></label>' +
+
+      '<div class="row-2">' +
+        '<label class="field"><span>Call it something</span><input id="f-name" placeholder="Optional" /></label>' +
+        '<label class="field"><span>Marks or colour</span><input id="f-marks" placeholder="Brown, white patch" /></label>' +
+      '</div>' +
+
+      '<label class="field"><span>Photo</span>' +
+        '<button type="button" class="btn btn-line btn-block" id="pick-photo">Take or choose a photo</button>' +
+        '<span class="hint" id="photo-note">Shrunk on your device before saving. Nothing is uploaded.</span></label>' +
+
+      '<div class="sheet-actions">' +
+        '<button class="btn btn-line" data-close>Cancel</button>' +
+        '<button class="btn btn-alarm" id="save-report">Save case</button></div>');
+
+    sheet.addEventListener('click', (event) => {
+      const chip = event.target.closest('.chip[data-urgency]');
+      if (!chip) return;
+      draft.urgency = chip.dataset.urgency;
+      sheet.querySelectorAll('.chip[data-urgency]').forEach((c) =>
+        c.setAttribute('aria-pressed', String(c.dataset.urgency === draft.urgency)));
+    });
+
+    sheet.querySelector('#use-location').addEventListener('click', () => {
+      const note = sheet.querySelector('#coord-note');
+      if (!navigator.geolocation) { note.textContent = 'This browser will not share a location.'; return; }
+      note.textContent = 'Finding you…';
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          draft.coords = { lat: +pos.coords.latitude.toFixed(6), lng: +pos.coords.longitude.toFixed(6) };
+          note.textContent = 'Pinned at ' + draft.coords.lat + ', ' + draft.coords.lng;
+        },
+        () => { note.textContent = 'Could not get a location. Type a landmark instead.'; },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    });
+
+    sheet.querySelector('#pick-photo').addEventListener('click', () => {
+      pickPhoto((dataUrl) => {
+        draft.photo = dataUrl;
+        sheet.querySelector('#photo-note').textContent = 'Photo attached.';
+      });
+    });
+
+    sheet.querySelector('#save-report').addEventListener('click', () => {
+      draft.location = sheet.querySelector('#f-location').value.trim();
+      draft.condition = sheet.querySelector('#f-condition').value.trim();
+      draft.name = sheet.querySelector('#f-name').value.trim();
+      draft.marks = sheet.querySelector('#f-marks').value.trim();
+      if (!draft.location && !draft.condition) { toast('Add a location or say what is wrong'); return; }
+
+      // Two people often report the same dog. Warn once, then trust the user.
+      const key = draft.location.toLowerCase().slice(0, 14);
+      const near = key.length > 3 ? state.dogs.find((d) => d.status !== 'adopted' && d.location &&
+        d.location.toLowerCase().indexOf(key) !== -1) : null;
+      if (near && sheet.dataset.dupOk === undefined) {
+        sheet.dataset.dupOk = '1';
+        const box = document.createElement('div');
+        box.className = 'warn-inline';
+        box.textContent = 'There is already an open case near “' + near.location + '” (' +
+          dogName(near) + '). Tap Save again if this is a different dog.';
+        sheet.insertBefore(box, sheet.children[1]);
+        if (box.scrollIntoView) box.scrollIntoView({ block: 'nearest' });
+        return;
+      }
+
+      logEntry(draft, 'Reported');
+      state.dogs.unshift(draft);
+      save(); closeSheet();
+      state.tab = 'board';
+      render();
+      toast('Case saved');
+    });
+  }
+
+  function openDogSheet(id) {
+    const dog = state.dogs.find((d) => d.id === id);
+    if (!dog) return;
+    const at = stageIndex(dog.status);
+    const stage = STAGES[at];
+    const nextStage = STAGES[at + 1];
+
+    const stepper = STAGES.map((s, i) =>
+      '<button data-stage-jump="' + s.id + '" data-done="' + (i < at) + '" data-current="' + (i === at) + '"' +
+      ' title="Move to ' + esc(s.label) + '"><i></i><span>' + esc(s.short) + '</span></button>').join('');
+
+    const mapLink = dog.coords
+      ? ' <a href="https://www.google.com/maps?q=' + dog.coords.lat + ',' + dog.coords.lng + '" target="_blank" rel="noopener">Map</a>' : '';
+
+    const sheet = openSheet(
+      '<div class="sheet-head">' +
+        '<h3>' + esc(dogName(dog)) + '</h3>' +
+        (dog.isDemo ? '<span class="tag demo">Sample</span>' : '') +
+        '<span class="tag ' + dog.urgency + '">' + esc(urgencyShort[dog.urgency]) + '</span>' +
+        '<button class="btn btn-line btn-small" data-close>Close</button></div>' +
+
+      '<img class="detail-photo" src="' + esc(faceOf(dog)) + '" alt="" />' +
+
+      '<div class="stepper">' + stepper + '</div>' +
+
+      '<div class="detail-grid">' +
+        '<div><dt>Reported</dt><dd>' + esc(shortDate(dog.createdAt)) + ' · day ' + daysSince(dog.createdAt) + '</dd></div>' +
+        '<div><dt>Where</dt><dd>' + esc(dog.location || '—') + mapLink + '</dd></div>' +
+        '<div><dt>Description</dt><dd>' + esc([dog.sex !== 'Unknown' ? dog.sex : '', dog.ageGuess, dog.marks].filter(Boolean).join(', ') || '—') + '</dd></div>' +
+        '<div><dt>Health</dt><dd>' + (dog.vaccinated ? 'Vaccinated' : 'Not vaccinated') + ' · ' + (dog.sterilised ? 'Sterilised' : 'Not sterilised') + '</dd></div>' +
+        (dog.status === 'adopted' && (dog.adopterName || dog.adopterPhone)
+          ? '<div><dt>Adopted by</dt><dd>' + esc([dog.adopterName, dog.adopterPhone].filter(Boolean).join(' · ')) + '</dd></div>' : '') +
+      '</div>' +
+
+      '<h4>Next follow-up</h4>' +
+      '<p class="dog-meta" style="margin-bottom:8px">' + (dog.dueDate ? esc(dueLabel(dog)) : 'None set') + '</p>' +
+      '<div class="toolbar">' +
+        '<input id="due-date" type="date" value="' + esc(dog.dueDate) + '" aria-label="Follow-up date" style="max-width:170px" />' +
+        '<input id="due-note" placeholder="Second vaccination" value="' + esc(dog.dueNote) + '" />' +
+        '<button class="btn btn-line btn-small" id="save-due">Set</button>' +
+        (dog.dueDate ? '<button class="btn btn-line btn-small" id="done-due">Done</button>' : '') +
+      '</div>' +
+
+      (dog.condition ? '<p class="dog-note">' + esc(dog.condition) + '</p>' : '') +
+      (dog.story ? '<p class="dog-note" style="margin-top:8px">' + esc(dog.story) + '</p>' : '') +
+
+      (nextStage ? '<button class="btn btn-solid btn-block" id="advance" style="margin-top:16px">' + esc(stage.next) + '</button>' : '') +
+
+      '<div class="sheet-actions">' +
+        '<button class="btn btn-line btn-small" id="edit">Edit details</button>' +
+        '<button class="btn btn-line btn-small" id="poster"' +
+          (dog.status === 'ready' || dog.status === 'adopted' ? '' : ' disabled title="Available once the dog is ready to adopt"') +
+        '>Make poster</button>' +
+        '<button class="btn btn-line btn-small" id="share">Share details</button></div>' +
+
+      '<h4 style="margin-top:22px">Money spent</h4>' +
+      '<div class="panel" style="margin-top:8px">' +
+        ((dog.expenses || []).length
+          ? dog.expenses.map((e) => '<div class="money-row"><span>' + esc(e.label || 'Expense') +
+              ' <span class="money-when">' + esc(shortDate(e.at)) + '</span></span><b>' + money(e.amount) + '</b></div>').join('') +
+            '<div class="money-total"><span>Total</span><span>' + money(spentOn(dog)) + '</span></div>'
+          : '<p class="dog-meta">Nothing recorded yet.</p>') +
+      '</div>' +
+      '<div class="toolbar">' +
+        '<input id="exp-label" placeholder="Vet fee, medicine, food" />' +
+        '<input id="exp-amount" type="number" min="0" step="1" placeholder="Amount" style="max-width:130px" />' +
+        '<button class="btn btn-line btn-small" id="add-exp">Add</button>' +
+      '</div>' +
+
+      '<h4 style="margin-top:22px">Care log</h4>' +
+      '<div class="toolbar" style="margin-top:8px">' +
+        '<input id="log-text" placeholder="Vet visit, medicine, deworming…" />' +
+        '<button class="btn btn-solid btn-small" id="add-log">Add</button></div>' +
+      '<ul class="log">' + (dog.log.map((e) =>
+        '<li><time>' + esc(shortDate(e.at)) + '</time><span class="dot"></span><span class="text">' + esc(e.text) + '</span></li>').join('')
+        || '<li><span style="color:var(--quiet)">Nothing logged yet.</span></li>') + '</ul>' +
+
+      '<button class="btn btn-danger btn-block btn-small" id="delete" style="margin-top:20px">Delete this case</button>');
+
+    const moveTo = (stageId) => {
+      if (stageId === dog.status) return;
+      dog.status = stageId;
+      logEntry(dog, 'Moved to ' + stageLabel(stageId));
+      save(); render(); openDogSheet(id);
+      toast(dogName(dog) + ' → ' + stageLabel(stageId));
+    };
+
+    sheet.querySelectorAll('[data-stage-jump]').forEach((btn) =>
+      btn.addEventListener('click', () => moveTo(btn.dataset.stageJump)));
+
+    const advance = sheet.querySelector('#advance');
+    if (advance) advance.addEventListener('click', () => moveTo(nextStage.id));
+
+    sheet.querySelector('#add-log').addEventListener('click', () => {
+      const text = sheet.querySelector('#log-text').value.trim();
+      if (!text) return;
+      logEntry(dog, text);
+      save(); openDogSheet(id);
+    });
+
+    sheet.querySelector('#edit').addEventListener('click', () => openEditSheet(id));
+    sheet.querySelector('#poster').addEventListener('click', () => makePoster(dog));
+    sheet.querySelector('#share').addEventListener('click', () => shareDog(dog));
+
+    sheet.querySelector('#save-due').addEventListener('click', () => {
+      const date = sheet.querySelector('#due-date').value;
+      if (!date) { toast('Pick a date first'); return; }
+      dog.dueDate = date;
+      dog.dueNote = sheet.querySelector('#due-note').value.trim();
+      dog.updatedAt = nowISO();
+      save(); render(); openDogSheet(id);
+      toast('Follow-up set');
+    });
+
+    const doneDue = sheet.querySelector('#done-due');
+    if (doneDue) doneDue.addEventListener('click', () => {
+      logEntry(dog, (dog.dueNote || 'Follow-up') + ' — done');
+      dog.dueDate = ''; dog.dueNote = '';
+      save(); render(); openDogSheet(id);
+      toast('Marked done');
+    });
+
+    sheet.querySelector('#add-exp').addEventListener('click', () => {
+      const amount = Number(sheet.querySelector('#exp-amount').value);
+      if (!(amount > 0)) { toast('Enter an amount'); return; }
+      dog.expenses.push({
+        id: uid(), at: nowISO(),
+        label: sheet.querySelector('#exp-label').value.trim(),
+        amount: Math.round(amount * 100) / 100
+      });
+      dog.updatedAt = nowISO();
+      save(); openDogSheet(id);
+    });
+
+    sheet.querySelector('#delete').addEventListener('click', (event) => {
+      const btn = event.currentTarget;
+      if (btn.dataset.confirm === undefined) {
+        btn.dataset.confirm = '1';
+        btn.textContent = 'Tap again to delete for good';
+        return;
+      }
+      state.dogs = state.dogs.filter((d) => d.id !== id);
+      save(); closeSheet(); render();
+      toast('Case deleted');
+    });
+  }
+
+  function openEditSheet(id) {
+    const dog = state.dogs.find((d) => d.id === id);
+    if (!dog) return;
+
+    const sheet = openSheet(
+      '<div class="sheet-head"><h3>Edit ' + esc(dogName(dog)) + '</h3>' +
+        '<button class="btn btn-line btn-small" data-close>Cancel</button></div>' +
+
+      '<div class="row-2">' +
+        '<label class="field"><span>Name</span><input id="e-name" value="' + esc(dog.name) + '" /></label>' +
+        '<label class="field"><span>Rough age</span><input id="e-age" value="' + esc(dog.ageGuess) + '" placeholder="Puppy, 2 years" /></label>' +
+      '</div>' +
+      '<label class="field"><span>Sex</span>' + chipRow('sex', SEXES, dog.sex) + '</label>' +
+      '<label class="field"><span>Urgency</span>' + chipRow('urgency', URGENCY, dog.urgency) + '</label>' +
+      '<label class="field"><span>Where</span><input id="e-location" value="' + esc(dog.location) + '" /></label>' +
+      '<label class="field"><span>Marks or colour</span><input id="e-marks" value="' + esc(dog.marks) + '" /></label>' +
+      '<label class="field"><span>Condition</span><textarea id="e-condition">' + esc(dog.condition) + '</textarea></label>' +
+      '<label class="field"><span>Story for the adoption poster</span>' +
+        '<textarea id="e-story" placeholder="Friendly with children, sleeps through the night, scared of bikes.">' + esc(dog.story) + '</textarea></label>' +
+      '<div class="row-2">' +
+        '<label class="field"><span>Your name</span><input id="e-finder" value="' + esc(dog.finderName) + '" /></label>' +
+        '<label class="field"><span>Contact number</span><input id="e-phone" value="' + esc(dog.finderPhone) + '" placeholder="Shown on the poster" /></label>' +
+      '</div>' +
+      '<div class="row-2">' +
+        '<label class="field"><span>Adopter name</span><input id="e-adopter" value="' + esc(dog.adopterName) + '" placeholder="Once adopted" /></label>' +
+        '<label class="field"><span>Adopter number</span><input id="e-adopter-phone" value="' + esc(dog.adopterPhone) + '" /></label>' +
+      '</div>' +
+      '<label class="field"><span>Health</span><div class="chip-row">' +
+        '<button type="button" class="chip" data-flag="vaccinated" aria-pressed="' + dog.vaccinated + '">Vaccinated</button>' +
+        '<button type="button" class="chip" data-flag="sterilised" aria-pressed="' + dog.sterilised + '">Sterilised</button>' +
+      '</div></label>' +
+      '<label class="field"><span>Photo</span>' +
+        '<button type="button" class="btn btn-line btn-block" id="e-photo">' + (dog.photo ? 'Replace photo' : 'Add a photo') + '</button>' +
+        '<span class="hint">Without a photo the app draws a coat-coloured portrait.</span></label>' +
+
+      '<div class="sheet-actions">' +
+        '<button class="btn btn-line" data-close>Cancel</button>' +
+        '<button class="btn btn-solid" id="e-save">Save changes</button></div>');
+
+    const pending = { sex: dog.sex, urgency: dog.urgency, vaccinated: dog.vaccinated, sterilised: dog.sterilised, photo: dog.photo };
+
+    sheet.addEventListener('click', (event) => {
+      const chip = event.target.closest('.chip');
+      if (!chip) return;
+      if (chip.dataset.sex) {
+        pending.sex = chip.dataset.sex;
+        sheet.querySelectorAll('[data-sex]').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.sex === pending.sex)));
+      } else if (chip.dataset.urgency) {
+        pending.urgency = chip.dataset.urgency;
+        sheet.querySelectorAll('.chip[data-urgency]').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.urgency === pending.urgency)));
+      } else if (chip.dataset.flag) {
+        pending[chip.dataset.flag] = !pending[chip.dataset.flag];
+        chip.setAttribute('aria-pressed', String(pending[chip.dataset.flag]));
+      }
+    });
+
+    sheet.querySelector('#e-photo').addEventListener('click', () => {
+      pickPhoto((dataUrl) => {
+        pending.photo = dataUrl;
+        sheet.querySelector('#e-photo').textContent = 'Photo attached';
+      });
+    });
+
+    sheet.querySelector('#e-save').addEventListener('click', () => {
+      dog.name = sheet.querySelector('#e-name').value.trim();
+      dog.ageGuess = sheet.querySelector('#e-age').value.trim();
+      dog.location = sheet.querySelector('#e-location').value.trim();
+      dog.marks = sheet.querySelector('#e-marks').value.trim();
+      dog.condition = sheet.querySelector('#e-condition').value.trim();
+      dog.story = sheet.querySelector('#e-story').value.trim();
+      dog.finderName = sheet.querySelector('#e-finder').value.trim();
+      dog.finderPhone = sheet.querySelector('#e-phone').value.trim();
+      dog.adopterName = sheet.querySelector('#e-adopter').value.trim();
+      dog.adopterPhone = sheet.querySelector('#e-adopter-phone').value.trim();
+      Object.assign(dog, pending);
+      dog.updatedAt = nowISO();
+      save(); render(); openDogSheet(id);
+      toast('Saved');
+    });
+  }
+
+  function openContactSheet() {
+    const sheet = openSheet(
+      '<div class="sheet-head"><h3>Add a number</h3>' +
+        '<button class="btn btn-line btn-small" data-close>Cancel</button></div>' +
+      '<label class="field"><span>Name</span><input id="c-name" placeholder="Dr Mehta / City Animal Shelter" /></label>' +
+      '<label class="field"><span>Type</span>' + chipRow('kind', KINDS, 'Vet') + '</label>' +
+      '<div class="row-2">' +
+        '<label class="field"><span>Phone</span><input id="c-phone" placeholder="+91…" /></label>' +
+        '<label class="field"><span>Area</span><input id="c-area" placeholder="Which part of town" /></label>' +
+      '</div>' +
+      '<label class="field"><span>Notes</span><input id="c-notes" placeholder="Open till 9pm, treats strays free" /></label>' +
+      '<div class="sheet-actions">' +
+        '<button class="btn btn-line" data-close>Cancel</button>' +
+        '<button class="btn btn-solid" id="c-save">Save</button></div>');
+
+    let kind = 'Vet';
+    sheet.addEventListener('click', (event) => {
+      const chip = event.target.closest('[data-kind]');
+      if (!chip) return;
+      kind = chip.dataset.kind;
+      sheet.querySelectorAll('[data-kind]').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.kind === kind)));
+    });
+
+    sheet.querySelector('#c-save').addEventListener('click', () => {
+      const name = sheet.querySelector('#c-name').value.trim();
+      if (!name) { toast('Give it a name'); return; }
+      state.contacts.push(adoptContact({
+        name: name, kind: kind,
+        phone: sheet.querySelector('#c-phone').value.trim(),
+        area: sheet.querySelector('#c-area').value.trim(),
+        notes: sheet.querySelector('#c-notes').value.trim()
+      }));
+      save(); closeSheet(); render();
+      toast('Number saved');
+    });
+  }
+
+  /* -------------------------------- photos ------------------------------- */
+
+  /** Shrink on the device: a phone photo is several MB, and the store holds a few. */
+  function pickPhoto(done) {
+    const input = $('#photo-input');
+    input.onchange = () => {
+      const file = input.files && input.files[0];
+      input.value = '';
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const max = 900;
+            const scale = Math.min(1, max / Math.max(img.width, img.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(img.width * scale);
+            canvas.height = Math.round(img.height * scale);
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            done(canvas.toDataURL('image/jpeg', 0.7));
+          } catch (err) {
+            done(reader.result); // No canvas: keep the original rather than losing the photo.
+          }
+        };
+        img.onerror = () => toast('That file is not an image');
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  }
+
+  /* -------------------------------- poster ------------------------------- */
+
+  function posterHTML(dog) {
+    const facts = [
+      ['Age', dog.ageGuess], ['Sex', dog.sex !== 'Unknown' ? dog.sex : ''],
+      ['Markings', dog.marks], ['Vaccinated', dog.vaccinated ? 'Yes' : 'In progress'],
+      ['Sterilised', dog.sterilised ? 'Yes' : 'In progress'], ['Found near', dog.location]
+    ].filter((pair) => pair[1]);
+
+    return '<div class="poster">' +
+      '<div><p class="kicker">LOOKING FOR A HOME</p><h1>' + esc(dogName(dog)) + '</h1></div>' +
+      '<img src="' + esc(faceOf(dog)) + '" alt="" />' +
+      '<div class="facts">' + facts.map((p) => '<div><b>' + esc(p[0].toUpperCase()) + '</b>' + esc(p[1]) + '</div>').join('') + '</div>' +
+      (dog.story ? '<p class="story">' + esc(dog.story) + '</p>' : '') +
+      '<p class="call-line">' + esc(dog.finderName || 'Call to meet this dog') +
+        (dog.finderPhone ? ' · ' + esc(dog.finderPhone) : '') + '</p></div>';
+  }
+
+  /** Plain text a rescuer can paste into WhatsApp or read down the phone. */
+  function dogSummary(dog) {
+    const lines = [dogName(dog)];
+    if (dog.status === 'ready') lines.push('Looking for a home');
+    const desc = [dog.sex !== 'Unknown' ? dog.sex : '', dog.ageGuess, dog.marks].filter(Boolean).join(', ');
+    if (desc) lines.push(desc);
+    if (dog.location) lines.push('Found near ' + dog.location);
+    if (dog.condition) lines.push(dog.condition);
+    if (dog.story) lines.push(dog.story);
+    lines.push((dog.vaccinated ? 'Vaccinated' : 'Vaccination pending') + ', ' +
+      (dog.sterilised ? 'sterilised' : 'not sterilised'));
+    if (dog.finderPhone) lines.push('Contact ' + (dog.finderName ? dog.finderName + ' ' : '') + dog.finderPhone);
+    return lines.join('\n');
+  }
+
+  function showShareSheet(text) {
+    const sheet = openSheet(
+      '<div class="sheet-head"><h3>Share details</h3>' +
+        '<button class="btn btn-line btn-small" data-close>Close</button></div>' +
+      '<label class="field"><span>Copy this into a message</span>' +
+        '<textarea id="share-text" style="min-height:190px">' + esc(text) + '</textarea></label>');
+    const box = sheet.querySelector('#share-text');
+    box.focus();
+    box.select();
+  }
+
+  function shareDog(dog) {
+    const text = dogSummary(dog);
+    if (navigator.share) { navigator.share({ title: dogName(dog), text: text }).catch(() => {}); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => toast('Details copied'), () => showShareSheet(text));
+      return;
+    }
+    showShareSheet(text);
+  }
+
+  function makePoster(dog) {
+    if (!dog) return;
+    if (!dog.finderPhone) toast('Tip: add a contact number under Edit');
+    $('#poster-stage').innerHTML = posterHTML(dog);
+    document.body.dataset.print = 'poster';
+    const reset = () => {
+      document.body.removeAttribute('data-print');
+      $('#poster-stage').innerHTML = '';
+      window.removeEventListener('afterprint', reset);
+    };
+    window.addEventListener('afterprint', reset);
+    window.print();
+    setTimeout(reset, 1500); // Some browsers never fire afterprint.
+  }
+
+  /* -------------------------------- backup ------------------------------- */
+
+  function downloadFile(filename, text, type) {
+    const url = URL.createObjectURL(new Blob([text], { type: type }));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function openBackupSheet() {
+    const where = storage.available
+      ? 'Everything lives in this browser, on this device. Clearing site data erases it, and another phone will not see it.'
+      : 'This browser is blocking local storage, so a backup file is the only way to keep your work.';
+
+    const sheet = openSheet(
+      '<div class="sheet-head"><h3>Backup</h3>' +
+        '<button class="btn btn-line btn-small" data-close>Close</button></div>' +
+      '<p style="color:var(--bark-soft);margin-bottom:16px">' + where +
+        ' Save a file and you can move everything to another device, or hand it to whoever takes over.</p>' +
+      '<button class="btn btn-solid btn-block" id="b-export">Save backup file</button>' +
+      '<button class="btn btn-line btn-block" id="b-import" style="margin-top:10px">Restore from file</button>' +
+      '<button class="btn btn-line btn-block" id="b-csv" style="margin-top:10px">Export a spreadsheet</button>' +
+      '<p style="color:var(--quiet);font-size:13px;margin-top:14px">Restoring adds to what is already here. It never deletes a case.</p>' +
+      '<div style="border-top:1px solid var(--line);margin-top:18px;padding-top:16px">' +
+        '<h4>Sample cases</h4>' +
+        '<p style="color:var(--quiet);font-size:13.5px;margin:4px 0 12px">Eight made-up dogs and four contacts, for trying things out.</p>' +
+        (hasDemo()
+          ? '<button class="btn btn-line btn-block" id="b-clear-demo">Clear sample cases</button>'
+          : '<button class="btn btn-line btn-block" id="b-load-demo">Load sample cases</button>') +
+      '</div>');
+
+    sheet.querySelector('#b-export').addEventListener('click', () => {
+      downloadFile(
+        'street-rescue-backup-' + new Date().toISOString().slice(0, 10) + '.json',
+        JSON.stringify({ app: 'street-rescue', version: 1, savedAt: nowISO(), dogs: state.dogs, contacts: state.contacts }, null, 2),
+        'application/json'
+      );
+      toast('Backup saved');
+    });
+    sheet.querySelector('#b-import').addEventListener('click', () => $('#import-file').click());
+
+    sheet.querySelector('#b-csv').addEventListener('click', () => {
+      const header = ['Name', 'Stage', 'Urgency', 'Sex', 'Age', 'Location', 'Reported', 'Days',
+        'Vaccinated', 'Sterilised', 'Spent', 'Next follow-up'];
+      const rows = state.dogs.map((d) => [dogName(d), stageLabel(d.status), urgencyShort[d.urgency],
+        d.sex, d.ageGuess, d.location, d.createdAt.slice(0, 10), daysSince(d.createdAt),
+        d.vaccinated ? 'yes' : 'no', d.sterilised ? 'yes' : 'no', spentOn(d), d.dueDate]);
+      const csv = [header].concat(rows)
+        .map((row) => row.map((cell) => '"' + String(cell).replace(/"/g, '""') + '"').join(','))
+        .join('\r\n');
+      downloadFile('street-rescue-' + todayKey() + '.csv', csv, 'text/csv');
+      toast('Spreadsheet saved');
+    });
+
+    const loadBtn = sheet.querySelector('#b-load-demo');
+    if (loadBtn) loadBtn.addEventListener('click', () => { loadDemo(); closeSheet(); render(); toast('Sample cases loaded'); });
+    const clearBtn = sheet.querySelector('#b-clear-demo');
+    if (clearBtn) clearBtn.addEventListener('click', () => { clearDemo(); closeSheet(); render(); toast('Sample cases cleared'); });
+  }
+
+  function importBackup(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      let parsed;
+      try { parsed = JSON.parse(reader.result); }
+      catch (err) { toast('That file is not a Street Rescue backup'); return; }
+
+      const dogs = parsed && Array.isArray(parsed.dogs) ? parsed.dogs.map(adoptDog) : [];
+      const contacts = parsed && Array.isArray(parsed.contacts) ? parsed.contacts.map(adoptContact) : [];
+      if (!dogs.length && !contacts.length) { toast('No cases found in that file'); return; }
+
+      const known = {};
+      state.dogs.forEach((d) => { known[d.id] = true; });
+      const knownContacts = {};
+      state.contacts.forEach((c) => { knownContacts[c.id] = true; });
+
+      state.dogs = dogs.filter((d) => !known[d.id]).concat(state.dogs);
+      state.contacts = state.contacts.concat(contacts.filter((c) => !knownContacts[c.id]));
+
+      save(); closeSheet(); render();
+      toast('Restored ' + dogs.length + ' case' + (dogs.length === 1 ? '' : 's'));
+    };
+    reader.readAsText(file);
+  }
+
+  /* --------------------------------- boot -------------------------------- */
+
+  function showCaption(hit) {
+    const caption = $('#trend-caption');
+    if (!caption || !hit) return;
+    caption.textContent = hit.dataset.month + ': ' + hit.dataset.reports + ' reported, ' + hit.dataset.adoptions + ' adopted';
+  }
+
+  function bind() {
+    $$('.tabs button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.tab = btn.dataset.tab;
+        render();
+        window.scrollTo(0, 0);
+      });
+    });
+
+    const tabButtons = $$('.tabs button');
+    document.querySelector('.tabs').addEventListener('keydown', (event) => {
+      const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+      if (!step) return;
+      event.preventDefault();
+      const here = tabButtons.indexOf(document.activeElement);
+      const next = tabButtons[(here + step + tabButtons.length) % tabButtons.length];
+      next.focus();
+      next.click();
+    });
+
+    $('#report').addEventListener('click', openReportSheet);
+    $('#open-backup').addEventListener('click', openBackupSheet);
+    $('#import-file').addEventListener('change', (e) => {
+      if (e.target.files[0]) importBackup(e.target.files[0]);
+      e.target.value = '';
+    });
+
+    $('#demo-strip').addEventListener('click', (e) => {
+      if (e.target.id === 'clear-demo') { clearDemo(); render(); toast('Sample cases cleared'); }
+    });
+
+    $('#view').addEventListener('click', (event) => {
+      const t = event.target;
+
+      const goto = t.closest('[data-goto]');
+      if (goto) { state.tab = goto.dataset.goto; render(); window.scrollTo(0, 0); return; }
+
+      const open = t.closest('[data-open]');
+      if (open) { openDogSheet(open.dataset.open); return; }
+
+      const poster = t.closest('[data-poster]');
+      if (poster) { makePoster(state.dogs.find((d) => d.id === poster.dataset.poster)); return; }
+
+      const stageChip = t.closest('[data-stage]');
+      if (stageChip) { state.stageFilter = stageChip.dataset.stage; render(); return; }
+
+      const urgChip = t.closest('[data-urg]');
+      if (urgChip) { state.urgencyFilter = urgChip.dataset.urg; render(); return; }
+
+      const del = t.closest('[data-del-contact]');
+      if (del) {
+        state.contacts = state.contacts.filter((c) => c.id !== del.dataset.delContact);
+        save(); render(); toast('Removed');
+        return;
+      }
+
+      const hit = t.closest('.hit');
+      if (hit) { showCaption(hit); return; }
+
+      if (t.id === 'add-contact') { openContactSheet(); return; }
+      if (t.id === 'hero-report') { openReportSheet(); return; }
+      if (t.id === 'load-demo') { loadDemo(); render(); toast('Sample cases loaded'); }
+    });
+
+    // Searching re-renders the board; put the caret back where it was.
+    $('#view').addEventListener('input', (event) => {
+      if (event.target.id !== 'search') return;
+      state.query = event.target.value;
+      $('#view').innerHTML = VIEWS.board();
+      const input = $('#search');
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    });
+
+    $('#view').addEventListener('change', (event) => {
+      if (event.target.id === 'sort') { state.sort = event.target.value; render(); }
+    });
+
+    $('#view').addEventListener('mouseover', (event) => {
+      const hit = event.target.closest && event.target.closest('.hit');
+      if (hit) showCaption(hit);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (sheetOpen() || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
+      if (event.key === 'n') { event.preventDefault(); openReportSheet(); }
+      if (event.key === '/') {
+        event.preventDefault();
+        state.tab = 'board';
+        render();
+        const input = $('#search');
+        if (input) input.focus();
+      }
+    });
+  }
+
+  function boot() {
+    bind();
+    const saved = storage.read();
+
+    if (saved && (Array.isArray(saved.dogs) || Array.isArray(saved.contacts))) {
+      state.dogs = Array.isArray(saved.dogs) ? saved.dogs.map(adoptDog) : [];
+      state.contacts = Array.isArray(saved.contacts) ? saved.contacts.map(adoptContact) : [];
+    } else {
+      // First run: seed sample cases so there is something to look at.
+      state.dogs = demoDogs();
+      state.contacts = demoContacts();
+      save();
+    }
+
+    if (!storage.available) {
+      warn('This browser is blocking local storage, so nothing is kept when you close the tab. Use Backup to save a file.');
+    }
+    render();
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
